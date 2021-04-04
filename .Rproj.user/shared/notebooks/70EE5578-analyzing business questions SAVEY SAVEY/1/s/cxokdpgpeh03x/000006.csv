@@ -1,0 +1,13 @@
+"0","```r
+
+ggq %>%
+  mutate(name = fct_reorder(name,playlist_inclusions)) %>%
+  ggplot(aes(x=name, y=playlist_inclusions, fill=name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=pq_pal) +
+  xlab(\"genre name\") +
+  ylab(\"# of playlist inclusions\") +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.position = \"none\")
+```"

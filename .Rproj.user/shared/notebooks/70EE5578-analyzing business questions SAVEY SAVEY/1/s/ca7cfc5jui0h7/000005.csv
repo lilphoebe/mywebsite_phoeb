@@ -1,0 +1,12 @@
+"0","```r
+
+cq %>%
+  mutate(country = fct_reorder(country,value_per_customer)) %>%
+  ggplot(aes(x=country, y=value_per_customer, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  ylab(\"lifetime value per customer ($)\") +
+  theme_bw() +
+  theme(legend.position = \"none\") +
+  coord_flip()
+```"

@@ -1,0 +1,15 @@
+"0","```r
+employee_query <- 
+  \"SELECT
+  COUNT(customer.support_rep_id) 'rep_customers',
+  employee.first_name || ' ' || employee.last_name 'employee_name',
+  SUM(invoice.total) 'rep_total',
+  employee.hire_date
+  FROM customer
+INNER JOIN employee ON employee.employee_id = customer.support_rep_id
+INNER JOIN invoice ON invoice.customer_id = customer.customer_id
+GROUP BY employee_name\"
+
+eq <- run_query(employee_query)
+eq
+```"

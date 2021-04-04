@@ -1,0 +1,54 @@
+"0","```r
+new_country <-
+
+\"
+ /* categorizing countries with 1 purchase as Other */ 
+WITH country_fix AS
+    (
+    SELECT
+    CASE
+      WHEN 
+      COUNT(DISTINCT customer.customer_id) = 1 THEN 'Other'
+      ELSE customer.country
+      END AS 'country',
+    COUNT(DISTINCT customer.customer_id) 'total_customers',
+    COUNT(DISTINCT invoice.invoice_id) 'total_orders',
+    SUM(invoice.total) 'total_sales'
+    FROM customer
+    INNER JOIN invoice ON invoice.customer_id = customer.customer_id
+    GROUP BY country
+    ),
+/* organizing statistics */ 
+results AS
+    (
+    SELECT
+    SUM(total_customers) 'number_customers',
+    SUM(total_sales) 'total_sales',
+    SUM(total_sales) / SUM(total_customers) 'value_per_customer',
+    SUM(total_sales) / SUM(total_orders) 'avg_order_value',
+    country
+    FROM country_fix
+    GROUP BY country
+    ORDER BY number_customers DESC
+    )
+/* making the table, plus pushing 'Other' to the bottom */ 
+SELECT
+number_customers,
+total_sales,
+value_per_customer,
+avg_order_value,
+country
+FROM 
+  (SELECT
+  results.*,
+  CASE
+    WHEN results.country = 'Other' THEN 1
+    ELSE 0
+    END AS 'outer_sort'
+  FROM results)
+ORDER BY outer_sort
+\"
+
+cq <- run_query(new_country)
+cq
+```"

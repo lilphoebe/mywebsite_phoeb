@@ -1,0 +1,288 @@
+---
+title: "Tracking Auk Breeding With Mixed Modelling"
+author: "Phoebe Thatcher"
+output:
+ html_document:
+   includes:
+     in_header: compmodern.html
+   css: "articlestyles.css"
+   code_folding: hide
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r include = FALSE}
+library(tidyverse)
+library(broom)
+library(lme4)
+library(ggeffects)
+```
+Since 1982 the UK's Centre for Ecology and Hydrology has been tracking the breeding habits of auks on the Isle of May, a small island east of Scotland. The auk family of sea birds, which includes the iconic puffin, live primarily on the coasts of the northern Atlantic Ocean, and climate change could have significant effects on their ability to breed. We'll use the CEH's collected data, plus weather and temperature data from the Meteorological Office, to see how various species of auk have fared over the course of this long-term study. We'll use the {lme4} package to create random-intercept, mixed-effect linear models that account for the hierarchical structure of the data.
+
+Throughout this report, I've included the code used in collapsible sections. For more insight into how I developed a particular solution, just click "code".
+
+#### Preparing the Data:
+```{r warning=FALSE, comment=FALSE}
+breeding <- read.csv("IMLOTSBSDataset1982-2016.csv")
+
+# the data is in wide format, so we'll pivot it to make a "species" column,
+#and use regex to assign new, accurate column names.
+br <- breeding %>% 
+  pivot_longer(
+    cols = 2:13,
+    names_to = c("species", "type"),
+    names_pattern = "([\\w]+)[.]([\\w]+)")
+
+#now we'll pare it down to breeding success data:
+
+success <- br %>%
+  filter(type == "BS")
+
+#looks good!
+```
+
+
+Now we've arranged the data so we have each species' rate of breeding success for each year of the study easily within reach. We'll create a basic time series showing how each species' breeding success has change over time. This will help us see patterns that might be useful for further study.
+
+___
+
+#### Visualizing breeding success over time:
+```{r warning=FALSE, comment=FALSE}
+birdpal <- c(Guillemot = "#F7DEDE", Razorbill = "#BAD5EE", Puffin = "#5071A0", Shag = "#111A36", Kittiwake = "#922A1C", Fulmar = "#F06A60")
+
+ggplot(success, aes(x=year, y=value, color = species)) +
+  geom_point() +
+  theme_bw() +
+  scale_color_manual(values = birdpal) +
+  ylab("breeding success")
+```
+
+```{r warning=FALSE, comment=FALSE}
+#faceted with lines of best fit:
+ 
+ggplot(success, aes(x=year, y=value, color=species)) +
+  geom_point() +
+  facet_wrap(~species) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_color_manual(values = birdpal) +
+  ylab("breeding success")
+```
+
+
+
+Our visualizations show a lot of variation from species to species! Shags and Kittiwakes appear to have increased breeding success over time, while the others are showing a mild decline. There's also a lot of differences in error - how closely those data adhere to the basic linear pattern. To get more numbers in front of us, we'll run a linear regression on each species in the dataset and collect that important info in a table.
+
+
+___
+
+
+#### Basic Linear Regressions by Species:
+
+```{r warning=FALSE, comment=FALSE}
+bird_list <- unique(br$species)
+t <- c("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+r <- data.frame("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+names(r) <- t
+
+for (b in 1:length(bird_list)) {
+  bird <- bird_list[b]
+  df <- success %>%
+    filter(species == bird)
+  line <- lm(value ~ year, data = df)
+  slope <- round(tidy(line)[2,2],5)
+  conflo <- round(confint(line)[2,1],5)
+  confhi <- round(confint(line)[2,2],5)
+  r2 <- round(summary(line)$r.squared,5)
+  r2a <- round(summary(line)$adj.r.squared,5)
+  pval <- round(tidy(line)[2,5],5)
+  newvector <- c(bird, slope, conflo, confhi, r2, r2a, pval)
+  names(newvector) <- t
+  r <- rbind(r, newvector)
+}
+r <- r[-1,]
+r %>%
+  mutate(confhi = as.numeric(confhi),
+         conflo = as.numeric(conflo),
+         conf.range = (confhi-conflo))
+```
+
+```{r warning=FALSE, comment=FALSE}
+#visualizing our basic linear models
+ggplot(success, aes(x=year, y=value, color=species)) +
+  geom_point(alpha = .4) +
+  geom_smooth(method = "lm", se=TRUE, alpha=.2) +
+  theme_bw() +
+  scale_color_manual(values=birdpal) +
+  ylab("breeding success") +
+  theme(legend.position = c(.1,.70),
+           legend.text = element_text(size=8),
+           legend.title = element_text(size=9)) +
+  ggtitle("Linear models of breeding success by species")
+
+```
+ 
+From our table and chart we can see that Puffins and Shags seem to have the most significant changes in breeding success over time, though one is rising and the other declining. Shags and Kittiwakes seem to be trending toward higher success over time, while Guillemots, Razorbills, Puffins and Fulmars all show a negative slope. The R^2 value shows how much variation in the data is explained by our basic linear models: Razorbills and Shags both have about 38% of their variation explained by this basic model, but overall we'll need need a model that can account for more of the variation in our data if we want to dig deeper!
+
+We can see that there have been some intriguing changes in breeding success among our auks since the beginning of this study. Could changing climate be driving some of those changes? We'll use data from the UK Meteorological Office to assign a maximum temperature to each year of the study, then see if we can infer any trends from that data.
+
+
+___
+
+#### Digging into climate:
+
+```{r warning=FALSE, comment=FALSE}
+#shags are on a different track then the other auks, so we'll exclude them from
+#this analysis
+sc <- success %>% 
+  filter(species != "Shag")
+
+#we'll use maximum june temperature as our climate indicator:
+climate <- read.csv("clim_east_Scotland.csv")
+
+#pulling out year & june max temp:
+june <- climate %>% 
+  filter(var == "tmax") %>% 
+  select(Year, JUN) %>%
+  mutate(Year = as.numeric(Year)) %>%
+  filter(Year %in% sc$year)
+
+#a function to find & assign temperature:
+find_temp <- function(year) {
+  temperature <- june[june$Year == year,2]
+}
+
+#moving rowwise to assign temperature by year:
+sc <- sc %>%
+  mutate(year = as.numeric(year)) %>%
+  rowwise() %>%
+  mutate(temp = ifelse(year %in% unique(june$Year),
+                       find_temp(year),
+                       NA)) %>%
+  ungroup()
+
+#and modify sc to exclude years with no temperature data, and a little renaming for clarity:
+sc <- sc %>%
+  filter(year >= 1986) %>%
+  rename(bs = value)
+
+#adding a normalized year (ie, 1,2,3 etc rather than 1985...)
+sc <- sc %>%
+  mutate(nyear = as.factor(year-1985))
+
+#and scaling temperature so the mean is 0 and variation is represented by
+#std deviations.
+sc$temp <- scale(sc$temp, center = TRUE, scale = TRUE)
+
+#let's visualize how temperature effects breeding success by species!
+ggplot(sc, aes(x = temp, y = bs, color = species)) +
+  geom_point() +
+  facet_wrap(~species) +
+  theme_bw() +
+  scale_color_manual(values = birdpal) +
+  theme(legend.position = "none") +
+  labs(x= "temperature (standard deviations)", y="breeding success", title = "how temperature affects breeding success by species")
+```
+
+```{r warning=FALSE, comment=FALSE}
+ ggplot(sc, aes(x=temp, y= bs, color = species)) +
+  geom_point() +
+  theme_bw() +
+  scale_color_manual(values = birdpal) +
+  labs(x= "temperature (standard deviations)", y="breeding success", title = "how temperature affects breeding success by species")
+```
+
+Comparing breeding success to maximum temperature (which we've scaled, so that negative numbers indicate unusually cool years and positive numbers indicate unusual warmth), we can see a lot of change from species to species. The data are pretty clustered, which is good evidence a linear approach to modelling these trends could be useful.
+
+These two charts show why it's important for us to use a model that acknowledges that each species behaves differently. It's easy to see from the second chart that we could draw a totally wrong conclusion about how auks as a whole are being affected by climate!
+
+Our question is predicated on the idea that the maximum temperature has changed since 1986. Let's quickly assess if the maximum temperature has changed significantly over the course of the study:
+
+___
+
+```{r warning=FALSE, comment=FALSE}
+templine <- lm(temp ~ year, data = sc)
+summary(templine)
+
+ggplot(sc, aes(y = temp, x = year)) +
+  geom_smooth(method = "lm", se = TRUE) +
+  geom_point() +
+  theme_bw()
+```
+
+A basic linear regression shows that yes, we're seeing a relatively significant trend toward
+higher maximum temperatures on the Isle of May from 1986 to 2016.
+
+Now we want to build a model we can use to explain the trends we're seeing using a random-intercept, mixed-model approach. 
+
+The question we want our model to answer is, "How does the breeding success of auks on the Isle of May respond to changes in temperature?" As we've seen, there are complicating factors in our data: the fact that data was gathered by species, and the fact that it's grouped annually. Using random intercepts will allow us to generalize our data to answer that larger question without having to eliminate data, or risk bias from factors we can't control for.
+
+We'll use the {lme4} package to construct our model, then summarize it.
+
+___
+
+#### Building the model:
+
+```{r warning=FALSE, comment=FALSE}
+
+#here's how to read our model from left to right:
+#we're seeing how bs (breeding success) is explained by temperature -
+#and randomizing intercepts based on year and species.
+
+mixed2 <- lmer(bs ~ temp + (1|nyear) + (1|species), data = sc)
+summary(mixed2)
+```
+This summary gives us some valuable information. We've included two random effects, year and species. If we sum up the variance in the random effects section, we can divide by each value to see what percentage is is explained by each factor we randomized. 
+
+Year accounts for about 13.3% of of the variation we see in the data, and species accounts for about 34.6% - that leaves about 52.1% of the variation in the data that is explained by temperature or other factors we haven't accounted for.
+
+We can also see under "fixed effects" (our explanatory variables) that the standard error is bigger than the temperature slope estimate. Thus, according to this model, we're not seeing a significant positive trend in breeding success among the auk species studied, since our slope could likely be zero or negative. We're not necessarily concerned about significance or insignificance here - we're just trying to create a model that accurately explains our data.
+
+Now we'll look into how we can measure the accuracy of our model, and visualize how well our model might predict future trends!
+
+#### Predicting trends with our model:
+```{r warning=FALSE, comment=FALSE}
+
+plot(mixed2)
+qqnorm(resid(mixed2))
+# qqplots show how the data produced by a model compare to a theoretical normal distribution. A perfect qq plot would show a 45 degree line from lower left to upper right; our model's output adheres somewhat to the line. Our model is pretty good, but we see some deviance from normal around the extremes.
+```
+
+The "qqplot" above shows how the data produced by a model compare to a theoretical normal distribution. A perfect qqplot would show a 45 degree line from lower left to upper right; our model's output adheres somewhat to the line. Our model is pretty good, but we see some deviance from normal distribution around the extremes.
+
+
+```{r warning=FALSE, comment=FALSE}
+
+#using ggpredict to predict output of model
+sp_both <- ggpredict(mixed2, terms = c("temp"))
+
+
+ggplot(sp_both) +
+  geom_line(aes(x=x, y=predicted)) + #slope line
+  geom_ribbon(aes(x=x, ymin = predicted - std.error, ymax=predicted + std.error),
+              fill = "lightgrey", alpha =.5) + #visualizing error
+  geom_point(data = sc,
+             aes(x=temp, y=bs, color=species)) +
+  labs(x="temperature (scaled)", y = "breeding success", title = "temp explains some variance in auk breeding success") +
+  scale_color_manual(values = birdpal) +
+  theme_bw()
+
+```
+
+Here, we used the function ggpredict() with our model to show how it might respond to various inputs, and mapped it over our existing data. We can see there's a lot of variation in breeding success that temperature alone doesn't account for: while rising maximum temperatures could be a factor in changing breeding success in Isle of May auks, there are definitely many other factors at play.
+
+___
+
+#### Conclusions
+
+By combining random effects with a standard linear regression, we were able to build a model that shows how breeding success in auks may change over time in response to temperature - while acknowledging factors like species that might complicate our statistical approach. Mixed models like these are useful across many disciplines that deal with messy, large scale data with complex structure and many contributing variables. 
+
+___
+
+#### Acknowledgments:
+
+This project was adapted from the [Master Modeller challenge](https://ourcodingclub.github.io/course/mastering-modelling-challenge/index.html?) by the University of Edinburgh Coding Club.
+
+The data were provided by the [NERC Environmental Data Center](https://catalogue.ceh.ac.uk/documents/02c98a4f-8e20-4c48-8167-1cd5044c4afe).
+

@@ -1,0 +1,46 @@
+---
+title: "phoebe thatcher"
+image: "selaginella.jpg"
+site: distill::distill_website
+links:
+  - label: LinkedIn
+    url: "https://www.linkedin.com/in/phoebe-thatcher-41b28019b/"
+  - label: Twitter
+    url: "https://twitter.com/phoebethatch"
+  - label: GitHub
+    url: "https://github.com/lilphoebe/"
+  - label: iNaturalist
+    url: "https://www.inaturalist.org/users/lilphoebe"
+  - label: Email
+    url: "mailto:phoebepreble@gmail.com"
+output: postcards::trestles
+---
+<style type="text/css">
+@font-face {
+  font-family: 'Computer Modern';
+  src: url('Serif/cmunrm.eot'); /* IE9 Compat Modes */
+  src: url('Serif/cmunrm.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+       url('Serif/cmunrm.woff') format('woff'), /* Modern Browsers */
+       url('Serif/cmunrm.ttf')  format('truetype'), /* Safari, Android, iOS */
+       url('Serif/cmunrm.csg#svgFontName') format('svg'); /* Legacy iOS */
+}
+</style>
+
+# about me
+
+hello, i'm phoebe thatcher. i am a data analyst and naturalist committed to bringing people closer to science and science closer to people. i'm passionate about bringing data to life through gorgeous visualizations and concise, accessible analysis and reporting. my current interests include building interactive dashboards with the {shiny} framework for R, and applying machine learning concepts to ecological data.
+
+---
+
+# my projects
+
+» [assessing climate's effect on baby auks with mixed-effect linear models](seabirdforweb.html)
+
+» [visualizing luna moths with {shiny} and {sf}](https://phoebethatch.shinyapps.io/lunadash/)
+
+» [analyzing music sales with SQL in R](businessquestions.html)
+
+» [building a map-winning robot with Twitter API](https://github.com/lilphoebe/freemaps)
+
+---
+

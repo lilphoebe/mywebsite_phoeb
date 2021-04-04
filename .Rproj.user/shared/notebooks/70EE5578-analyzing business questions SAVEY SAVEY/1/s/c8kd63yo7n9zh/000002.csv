@@ -1,0 +1,69 @@
+"0","```r
+rl_query <- 
+  \"
+WITH 
+/*counting how many tracks per album in the full library */
+album_count AS
+(
+  SELECT
+  album_id,
+  COUNT(track_id) 'album_tracks'
+  FROM track
+  GROUP BY album_id
+  ),
+/*connecting invoices to albums in the full library */
+album_lookup AS
+(
+  SELECT
+  invoice_line.invoice_id,
+  invoice_line.track_id,
+  track.album_id
+  FROM invoice_line
+  LEFT JOIN track ON track.track_id = invoice_line.track_id
+  ),
+/*counting number of tracks per album in purchase for each invoice */
+purchase_count AS
+  (
+  SELECT invoice_id,
+  album_id,
+  COUNT(DISTINCT track_id) 'count_purchased_tracks'
+  FROM album_lookup
+  GROUP BY invoice_id, album_id
+  ),
+ /* comparing counts from library versus invoice to see if full album was purchased */ 
+compare_counts AS
+  (
+  SELECT purchase_count.*,
+  album_count.album_tracks,
+  (CASE
+    WHEN purchase_count.count_purchased_tracks = album_count.album_tracks THEN 1
+    WHEN purchase_count.count_purchased_tracks <> album_count.album_tracks THEN 0
+    ELSE 9999
+  END)
+  as 'full_album'
+  FROM purchase_count
+  INNER JOIN album_count ON album_count.album_id = purchase_count.album_id),
+ /* classifying invoices as album or not */ 
+classify_inv AS
+  (
+  SELECT invoice_id,
+  MAX(full_album) 'album_purchase'
+  FROM compare_counts
+  GROUP BY invoice_id
+  )
+  
+SELECT
+album_purchase,
+COUNT(invoice_id) 'number_of_invoices',
+100*CAST(COUNT(invoice_id) AS FLOAT) / 
+  (SELECT
+  COUNT(invoice_id)
+  FROM classify_inv) 'percent_purchases'
+
+FROM classify_inv
+
+GROUP BY album_purchase
+  \"
+
+run_query(rl_query)
+```"

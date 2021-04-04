@@ -1,0 +1,21 @@
+"0","```r
+library(tidyverse)
+library(RSQLite)
+library(DBI)
+library(RColorBrewer)
+
+
+db <- 'chinook.db'
+run_query <- function(que)
+{
+  conn <- dbConnect(SQLite(), db)
+  result <- dbGetQuery(conn, que)
+  dbDisconnect(conn)
+  return(result)
+}
+show_tables <- function() {
+  q = \"SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view')\"
+  return(run_query(q))
+}
+show_tables()
+```"

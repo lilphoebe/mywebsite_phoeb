@@ -1,0 +1,20 @@
+"0","```r
+
+#assessing genres by sales in the US
+genre_query <-
+  \"SELECT
+count(track.genre_id) 'tracks_sold',
+genre.name 'genre_name',
+(CAST(COUNT(track.genre_id) AS FLOAT)/1051)*100 'percent_share'
+from invoice_line
+INNER JOIN track ON track.track_id = invoice_line.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+INNER JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+INNER JOIN customer ON customer.customer_id = invoice.customer_id
+WHERE customer.country == 'USA'
+GROUP BY genre.name
+ORDER BY tracks_sold DESC\"
+
+gq <- run_query(genre_query)
+gq
+```"

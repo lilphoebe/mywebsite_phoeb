@@ -1,0 +1,11 @@
+"0","```r
+
+eq %>%
+  ggplot(mapping =aes(x=employee_name, y=rep_customers, fill=employee_name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=eq_pal) +
+  theme_bw() +
+  xlab(\"sales support agent\") +
+  ylab(\"# of customers served\") +
+  theme(legend.position = \"none\")
+```"

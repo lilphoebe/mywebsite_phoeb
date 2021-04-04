@@ -1,0 +1,16 @@
+"0","```r
+
+cq_pal <- c(Other = \"#EC4E20\", USA = \"#f68060\", Canada = \"#F3CA40\", Brazil = \"#C5C392\",
+            France = \"#285238\", Germany = \"#ADA7C9\", \"Czech Republic\" = \"#586994\", 
+            \"United Kingdom\" = \"#ECDCB0\", Portugal = \"#D38B5D\", India = \"#F194B4\")
+
+cq %>%
+  mutate(country = fct_reorder(country, total_sales)) %>%
+  ggplot(aes(x=country, y=total_sales, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  ylab(\"total $ in sales\") +
+  theme_bw() +
+  theme(legend.position = \"none\") +
+  coord_flip()
+```"

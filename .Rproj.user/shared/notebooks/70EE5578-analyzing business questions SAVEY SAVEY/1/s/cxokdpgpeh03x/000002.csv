@@ -1,0 +1,21 @@
+"0","```r
+playlist_query <-
+  \"
+SELECT
+COUNT(playlist_track.track_id) 'playlist_inclusions',
+track.composer,
+genre.name
+FROM
+playlist_track
+INNER JOIN track ON track.track_id = playlist_track.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+GROUP BY track.composer
+ORDER BY playlist_inclusions DESC
+LIMIT 10;
+\"
+
+pq <- run_query(playlist_query)
+# eliminating the #NA tracks - copies? imports? artistless songs?
+pq %>%
+  filter(playlist_inclusions < 200)
+```"

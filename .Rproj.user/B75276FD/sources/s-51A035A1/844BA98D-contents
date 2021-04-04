@@ -1,0 +1,399 @@
+---
+title: "Analyzing Music Sales with SQL"
+author: "Phoebe Thatcher"
+output:
+ html_document:
+   includes:
+     in_header: compmodern.html
+   css: "articlestyles.css"
+   code_folding: hide
+---
+At the request of the (fictional) Chinook online music store, I'll be using
+R and SQL to analyze their company's proprietary database and answer important 
+questions about sales, employee performance, and future marketing strategies. I'll use the {RSQLite} package to make SQL queries to the Chinook database.
+
+The code & queries used to generate each section of this report are folded into collapsible sections.
+For more details about how I designed a particular query, just hit "Code".
+
+First, I'll load the necessary packages to manipulate data in R, and create SQL 
+queries from the comfort of RStudio. Then I'll make two "helper functions" - one
+to list the tables in the Chinook database to make sure the connection is working,
+and one I'll use to connect to the database, retrieve the queried data, and securely close the connection. 
+
+___
+
+#### Preparing the Database:
+```{r include=FALSE, echo=FALSE, warning=FALSE, comment=FALSE}
+library(tidyverse)
+library(RSQLite)
+library(DBI)
+library(RColorBrewer)
+```
+```{r warning=FALSE, comment=FALSE,results=FALSE}
+
+db <- 'chinook.db'
+run_query <- function(que)
+{
+  conn <- dbConnect(SQLite(), db)
+  result <- dbGetQuery(conn, que)
+  dbDisconnect(conn)
+  return(result)
+}
+show_tables <- function() {
+  q = "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view')"
+  return(run_query(q))
+}
+show_tables()
+```
+___
+#### Comparing Genre Popularity
+
+Chinook has recently acquired four new albums of different genres; a Hip-Hop album by
+the group Regal, a Punk album by the band Red Tone, a Pop album from the artist
+Meteor and the Girls, and a Blues album by Slim Jim Bites. We'll analyze how well various
+genres have sold in the past to assess where Chinook should put its marketing money.
+```{r warning=FALSE, comment=FALSE}
+#this tells us the total tracks_sold is 1051 - the number we use to calculate percentage
+#later on
+percentage_query <-
+  "SELECT
+count(track.genre_id) 'tracks_sold',
+genre.name 'genre_name'
+from invoice_line
+INNER JOIN track ON track.track_id = invoice_line.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+INNER JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+INNER JOIN customer ON customer.customer_id = invoice.customer_id
+WHERE customer.country == 'USA'
+ORDER BY tracks_sold DESC"
+
+run_query(percentage_query)
+
+#assessing genres by sales in the US
+genre_query <-
+  "SELECT
+count(track.genre_id) 'tracks_sold',
+genre.name 'genre_name',
+(CAST(COUNT(track.genre_id) AS FLOAT)/1051)*100 'percent_share'
+from invoice_line
+INNER JOIN track ON track.track_id = invoice_line.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+INNER JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+INNER JOIN customer ON customer.customer_id = invoice.customer_id
+WHERE customer.country == 'USA'
+GROUP BY genre.name
+ORDER BY tracks_sold DESC"
+
+gq <- run_query(genre_query)
+gq
+
+gq %>%
+  mutate(genre_name = fct_reorder(genre_name, tracks_sold)) %>%
+  ggplot(aes(x=genre_name, y=tracks_sold)) +
+  geom_col(fill="#f68060", alpha=.8, width=.8) +
+  coord_flip() +
+  theme_bw()
+```
+
+___
+
+Rock is by far the most popular genre for Chinook customers, so none of these album acquisitions
+are really perfect for the Chinook audience. The data suggests it's best to focus marketing money
+on the Punk album (the next best-selling genre), and the sales strategy should involve playing
+up any rock-inspired sounds the other artists' work offers. 
+
+___
+
+#### Assessing Sales Support Staff
+
+Next, we'll compare the amount in sales each Chinook sales support agent brings in, plus
+other data relevant to their performance.
+```{r warning=FALSE, comment=FALSE}
+employee_query <- 
+  "SELECT
+  COUNT(customer.support_rep_id) 'rep_customers',
+  employee.first_name || ' ' || employee.last_name 'employee_name',
+  SUM(invoice.total) 'rep_total',
+  employee.hire_date
+  FROM customer
+INNER JOIN employee ON employee.employee_id = customer.support_rep_id
+INNER JOIN invoice ON invoice.customer_id = customer.customer_id
+GROUP BY employee_name"
+
+eq <- run_query(employee_query)
+eq
+
+eq_pal <- c("#f68060", "#C5C392", "#ADA7C9")
+
+eq %>%
+  ggplot(mapping =aes(x=employee_name, y=rep_total, fill=employee_name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=eq_pal) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+eq %>%
+  ggplot(mapping =aes(x=employee_name, y=rep_customers, fill=employee_name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=eq_pal) +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+___
+
+Jane Peacock has made the most money in sales so far, while Margaret Park has handled
+the most individual clients. Steve lags in both categories, but he's also the newest sales agent at the company. Overall, there are no weak links here.
+
+___
+
+#### Analyzing Sales Data By Country
+
+Now we'll analyze sales data by country through a variety of summary statistics. 
+```{r warning=FALSE, comment=FALSE}
+new_country <-
+
+"
+WITH country_fix AS
+    (
+    SELECT
+    CASE
+      WHEN 
+      COUNT(DISTINCT customer.customer_id) = 1 THEN 'Other'
+      ELSE customer.country
+      END AS 'country',
+    COUNT(DISTINCT customer.customer_id) 'total_customers',
+    COUNT(DISTINCT invoice.invoice_id) 'total_orders',
+    SUM(invoice.total) 'total_sales'
+    FROM customer
+    INNER JOIN invoice ON invoice.customer_id = customer.customer_id
+    GROUP BY country
+    ),
+results AS
+    (
+    SELECT
+    SUM(total_customers) 'number_customers',
+    SUM(total_sales) 'total_sales',
+    SUM(total_sales) / SUM(total_customers) 'value_per_customer',
+    SUM(total_sales) / SUM(total_orders) 'avg_order_value',
+    country
+    FROM country_fix
+    GROUP BY country
+    ORDER BY number_customers DESC
+    )
+
+SELECT
+number_customers,
+total_sales,
+value_per_customer,
+avg_order_value,
+country
+FROM 
+  (SELECT
+  results.*,
+  CASE
+    WHEN results.country = 'Other' THEN 1
+    ELSE 0
+    END AS 'outer_sort'
+  FROM results)
+ORDER BY outer_sort
+"
+
+cq <- run_query(new_country)
+cq
+
+cq_pal <- c(Other = "#EC4E20", USA = "#f68060", Canada = "#F3CA40", Brazil = "#C5C392",
+            France = "#285238", Germany = "#ADA7C9", "Czech Republic" = "#586994", 
+            "United Kingdom" = "#ECDCB0", Portugal = "#D38B5D", India = "#F194B4")
+
+cq %>%
+  mutate(country = fct_reorder(country, total_sales)) %>%
+  ggplot(aes(x=country, y=total_sales, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  coord_flip()
+
+cq %>%
+  mutate(country = fct_reorder(country,value_per_customer)) %>%
+  ggplot(aes(x=country, y=value_per_customer, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  coord_flip()
+
+cq %>%
+  mutate(country = fct_reorder(country, avg_order_value)) %>%
+  ggplot(aes(x=country, y=avg_order_value, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  coord_flip()
+```
+___
+The US makes up by far the most value in sales, while the Czech Republic has the biggest spenders
+in terms of lifetime value per customer and value per order. Chinook should focus their expansion
+on their loyal Czech customers, as well as emerging markets in Canada and Brazil. The 'Other' category, which collates all countries with less than one sale, is prominent in all three categories - so continuing to offer their services to a global audience should be an important
+part of their strategy moving forward.
+___
+
+#### Breaking Down Purchases
+
+Chinook is considering switching to selling invididual tracks only rather than albums
+as a package, and want to know what share of their purchases are from sales of full albums
+versus sales of collections of individual tracks.
+```{r warning=FALSE, comment=FALSE}
+rl_query <- 
+  "
+WITH 
+album_count AS
+(
+  SELECT
+  album_id,
+  COUNT(track_id) 'album_tracks'
+  FROM track
+  GROUP BY album_id
+  ),
+  
+album_lookup AS
+(
+  SELECT
+  invoice_line.invoice_id,
+  invoice_line.track_id,
+  track.album_id
+  FROM invoice_line
+  LEFT JOIN track ON track.track_id = invoice_line.track_id
+  ),
+  
+purchase_count AS
+  (
+  SELECT invoice_id,
+  album_id,
+  COUNT(DISTINCT track_id) 'count_purchased_tracks'
+  FROM album_lookup
+  GROUP BY invoice_id, album_id
+  ),
+  
+compare_counts AS
+  (
+  SELECT purchase_count.*,
+  album_count.album_tracks,
+  (CASE
+    WHEN purchase_count.count_purchased_tracks = album_count.album_tracks THEN 1
+    WHEN purchase_count.count_purchased_tracks <> album_count.album_tracks THEN 0
+    ELSE 9999
+  END)
+  as 'full_album'
+  FROM purchase_count
+  INNER JOIN album_count ON album_count.album_id = purchase_count.album_id),
+  
+classify_inv AS
+  (
+  SELECT invoice_id,
+  MAX(full_album) 'album_purchase'
+  FROM compare_counts
+  GROUP BY invoice_id
+  )
+  
+SELECT
+album_purchase,
+COUNT(invoice_id) 'number_of_invoices',
+100*CAST(COUNT(invoice_id) AS FLOAT) / 
+  (SELECT
+  COUNT(invoice_id)
+  FROM classify_inv) 'percent_purchases'
+
+FROM classify_inv
+
+GROUP BY album_purchase
+  "
+
+run_query(rl_query)
+```
+___
+With 1 representing orders that included a full album and 0 representing purchases 
+of collections of individual tracks, we can see that sales of albums makes up as much as
+a third of Chinook's sales - switching to selling individual tracks doesn't seem compatible
+with the purchasing style of Chinook's customer base. 
+
+___
+
+#### Exploring Playlist Composition
+
+Chinook lets customers build playlists with their purchased music, and want to know which artists
+and genres are best represented in the playlist system.
+```{r warning=FALSE, comment=FALSE}
+playlist_query <-
+  "
+SELECT
+COUNT(playlist_track.track_id) 'playlist_inclusions',
+track.composer,
+genre.name
+FROM
+playlist_track
+INNER JOIN track ON track.track_id = playlist_track.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+GROUP BY track.composer
+ORDER BY playlist_inclusions DESC
+LIMIT 10;
+"
+
+pq <- run_query(playlist_query)
+# eliminating the #NA tracks - copies? imports? artistless songs?
+pq %>%
+  filter(playlist_inclusions < 200)
+#graphing
+pq_pal <- c("#EC4E20", "#f68060", "#F3CA40", "#C5C392",
+            "#285238", "#ADA7C9", "#586994", "#ECDCB0", "#D38B5D", "#F194B4")
+
+pq %>%
+  filter(playlist_inclusions < 200) %>%
+  mutate(composer = fct_reorder(composer,playlist_inclusions)) %>%
+  ggplot(aes(x=composer, y=playlist_inclusions, fill= composer)) +
+  scale_fill_manual(values=pq_pal) +
+  geom_col(alpha=.8, width=.8) +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.position = "none")
+
+g_query <-
+  "SELECT
+  COUNT(playlist_track.track_id) 'playlist_inclusions',
+  genre.name
+  FROM playlist_track
+  INNER JOIN track ON track.track_id = playlist_track.track_id
+  INNER JOIN genre ON genre.genre_id = track.genre_id
+  GROUP BY genre.name
+  ORDER BY playlist_inclusions DESC
+  LIMIT 10;
+"
+
+ggq <- run_query(g_query)
+ggq
+
+ggq %>%
+  mutate(name = fct_reorder(name,playlist_inclusions)) %>%
+  ggplot(aes(x=name, y=playlist_inclusions, fill=name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=pq_pal) +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+___
+
+Compared to the most popular genres in terms of purchases, this analysis of playlists has some surprises - even though Alternative/Punk is Chinook's second most popular genre in sales, Latin
+and Metal make up the second and third most frequently used genres in Chinook playlists, perhaps thanks to Iron Maiden superfans and customers who listen to Latin acts Chico Science, Titas and Gilberto Gil. Iron Maiden frontman Steve Harris is by far the best represented artist in terms of sales, though U2 and the Rolling Stones are also very popular. A big portion of the database's playlist tracks don't have an assigned artist - 
+a deeper exploration of why this is would add to the value of this analysis.
+
+___
+
+#### Conclusions
+
+A globally accessible online purchasing system that supports sales of both individual tracks and full albums, as well as a high-performing team of sales support agents, are two of Chinook’s biggest strengths as a company, and should continue to be a focus moving forward. While Chinook has successfully built an international customer base of rock fans, the company should orient their future expansion towards their growing audiences in Canada, Brazil, and the Czech Republic. Users of the Chinook playlist system gravitate toward Metal and Latin genres, while Alternative & Punk is Chinook’s second most sold genre, so future album acquisitions and marketing should cater to these genres.
+
+___

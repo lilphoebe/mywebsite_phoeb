@@ -1,0 +1,5 @@
+"0"," ggplot(sc, aes(x=temp, y= bs, color = species)) +"
+"0","  geom_point() +"
+"0","  theme_bw() +"
+"0","  scale_color_manual(values = birdpal) +"
+"0","  labs(x= ""temperature (standard deviations)"", y=""breeding success"", title = ""how temperature affects breeding success by species"")"

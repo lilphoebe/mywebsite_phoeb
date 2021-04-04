@@ -1,0 +1,12 @@
+"0","```r
+
+cq %>%
+  mutate(country = fct_reorder(country, avg_order_value)) %>%
+  ggplot(aes(x=country, y=avg_order_value, fill=country)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values = cq_pal) +
+  ylab(\"average value of order ($)\") +
+  theme_bw() +
+  theme(legend.position = \"none\") +
+  coord_flip()
+```"

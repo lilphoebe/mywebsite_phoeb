@@ -1,0 +1,13 @@
+"0","```r
+
+eq_pal <- c(\"#f68060\", \"#C5C392\", \"#ADA7C9\")
+
+eq %>%
+  ggplot(mapping =aes(x=employee_name, y=rep_total, fill=employee_name)) +
+  geom_col(alpha=.8, width=.8) +
+  scale_fill_manual(values=eq_pal) +
+  theme_bw() +
+  xlab(\"sales support agent\") +
+  ylab(\"$ in sales\") +
+  theme(legend.position = \"none\")
+```"

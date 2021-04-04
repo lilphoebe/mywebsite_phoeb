@@ -1,0 +1,12 @@
+"0","```r
+
+gq %>%
+  mutate(genre_name = fct_reorder(genre_name, tracks_sold)) %>%
+  ggplot(aes(x=genre_name, y=tracks_sold)) +
+  geom_col(fill=\"#f68060\", alpha=.8, width=.8) +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.title.y = element_blank()) +
+  ylab(\"# of tracks sold\")
+
+```"

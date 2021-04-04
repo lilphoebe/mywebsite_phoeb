@@ -1,0 +1,10 @@
+name: "phoebe thatcher"
+title: "phoebe thatcher"
+theme: theme2.css
+description: |
+  phoebe's website
+output_dir: "docs"
+navbar:
+  right:
+    - text: "Home"
+      href: index.html

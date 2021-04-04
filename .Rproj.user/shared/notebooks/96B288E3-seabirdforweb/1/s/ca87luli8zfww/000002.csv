@@ -1,0 +1,7 @@
+"0","birdpal <- c(Guillemot = ""#F7DEDE"", Razorbill = ""#BAD5EE"", Puffin = ""#5071A0"", Shag = ""#111A36"", Kittiwake = ""#922A1C"", Fulmar = ""#F06A60"")"
+"0",""
+"0","ggplot(success, aes(x=year, y=value, color = species)) +"
+"0","  geom_point() +"
+"0","  theme_bw() +"
+"0","  scale_color_manual(values = birdpal) +"
+"0","  ylab(""breeding success"")"

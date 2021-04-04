@@ -1,0 +1,539 @@
+#seabirds
+
+setwd("~/Documents/Codes/seabirds")
+library(tidyverse)
+library(broom)
+library(stargazer)
+#task 1 - use linear regression to assess temporal trends in breeding.
+breeding <- read.csv("IMLOTSBSDataset1982-2016.csv")
+colnames(breeding)
+
+#Reshape the data for analysis, with a “species” column.
+br <- breeding %>% 
+  pivot_longer(
+    cols = 2:13,
+    names_to = c("species", "type"),
+    names_pattern = "([\\w]+)[.]([\\w]+)")
+
+#:)
+#did hard pivot table task
+br
+
+success <- br %>%
+  filter(type == "BS")
+
+success #moving forward ignoring nest count for now:
+
+#a basic time series:
+
+print(unique(success$species))
+
+birdpal <- c(Guillemot = "#F7DEDE", Razorbill = "#BAD5EE", Puffin = "#5071A0", Shag = "#111A36", Kittiwake = "#922A1C", Fulmar = "#F06A60")
+
+ggplot(success, aes(x=year, y=value, color = species)) +
+  geom_point() +
+  theme_bw() +
+  scale_color_manual(values = birdpal)
+
+#faceted with lines of best fit:
+ 
+ggplot(success, aes(x=year, y=value, color=species)) +
+  geom_point() +
+  facet_wrap(~species) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_color_manual(values = birdpal)
+
+#basic theme is: most species seem to be seeing a mild decline
+#in breeding success, while kittiwakes are doing well and
+#shags are breedin' up a storm.
+
+#let's regress! a simple linear regression model for the whole dataset:
+
+reg1 <- lm(value ~ year, data=success)
+#figuring out how to index values lol
+summary(reg1)$r.squared
+summary(reg1)$adj.r.squared
+summary(reg1)$conf
+coef(reg1)
+confint(reg1)
+confint(reg1)[2,2]
+confint(2,1)
+tidy(reg1)[2,5]
+slo <- tidy(reg1)[2,2]
+slo
+?round
+# using a loop to do simple linear regressions on all the species.
+bird_list <- unique(br$species)
+
+t <- c("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+r <- data.frame("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+names(r) <- t
+
+for (b in 1:length(bird_list)) {
+  bird <- bird_list[b]
+  df <- success %>%
+    filter(species == bird)
+  line <- lm(value ~ year, data = df)
+  slope <- tidy(line)[2,2]
+  conflo <- confint(line)[2,1]
+  confhi <- confint(line)[2,2]
+  r2 <- summary(line)$r.squared
+  r2a <- summary(line)$adj.r.squared
+  pval <- tidy(line)[2,5]
+  newvector <- c(bird, slope, conflo, confhi, r2, r2a, pval)
+  names(newvector) <- t
+  r <- rbind(r, newvector)
+  print(r)
+}
+r <- r[-1,]
+
+r <- r %>%
+  mutate(diff = (confhi - conflo))
+r
+r %>%
+  mutate(confhi = as.numeric(confhi),
+         conflo = as.numeric(conflo),
+         difference = (confhi-conflo))
+#ok now we have all our data in front of us!
+#lowest pvals are in Shags and Kittiwakes
+#r2 show that Shags, Kittiwakes, and Razorbills are best explained by
+#simple regression - abt 38% of variance
+#most negative slope is Razorbill(steepest decline)
+#highest is Shags obvs
+
+#Create a visualisation of your choice showing the slope estimate and confidence 
+#intervals for each species, so that is clear which slopes differ from zero.
+
+ggplot(success, aes(x=year, y=value, color=species)) +
+  geom_point(alpha = .4) +
+  geom_smooth(method = "lm", se=TRUE, alpha=.2) +
+  theme_bw() +
+  scale_color_manual(values=birdpal) +
+  ylab("breeding success") +
+  theme(legend.position = c(.1,.75),
+           legend.text = element_text(size=8),
+           legend.title = element_text(size=9)) +
+  ggtitle("Linear models of breeding success by species")
+
+#again with nest numbers
+
+br
+
+nests <- br %>%
+  filter(type == "nests")
+
+dev.off()
+
+ggplot(nests, aes(x=year, y=value, color = species)) +
+  geom_point() +
+  theme_bw() +
+  scale_color_manual(values = birdpal)
+
+ggplot(nests, aes(x=year, y=value, color=species)) +
+  geom_point() +
+  facet_wrap(~species) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  scale_color_manual(values = birdpal)
+
+t <- c("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+r <- data.frame("species", "slope", "conflo", "confhi", "r2", "adj r2", "pval")
+names(r) <- t
+
+for (b in 1:length(bird_list)) {
+  bird <- bird_list[b]
+  df <- nests %>%
+    filter(species == bird)
+  line <- lm(value ~ year, data = df)
+  slope <- tidy(line)[2,2]
+  conflo <- confint(line)[2,1]
+  confhi <- confint(line)[2,2]
+  r2 <- summary(line)$r.squared
+  r2a <- summary(line)$adj.r.squared
+  pval <- tidy(line)[2,5]
+  newvector <- c(bird, slope, conflo, confhi, r2, r2a, pval)
+  names(newvector) <- t
+  r <- rbind(r, newvector)
+  print(r)
+}
+r <- r[-1,]
+
+r
+
+ggplot(nests, aes(x=year, y=value, color=species)) +
+  geom_point(alpha = .4) +
+  geom_smooth(method = "lm", se=TRUE, alpha=.2) +
+  theme_bw() +
+  scale_color_manual(values=birdpal) +
+  ylab("nest count") +
+  theme(legend.position = c(.1,.75),
+        legend.text = element_text(size=8),
+        legend.title = element_text(size=9)) +
+  ggtitle("Linear models of nest numbers by species")
+
+##Does climate effect breeding success?
+
+# You will design a hierarchical model to test for the 
+# influence of climate on breeding success. First, 
+# you may assume that species might show similar 
+# responses and therefore want to predict seabird 
+# breeding success as a function of climate only, 
+# with other factors perhaps introducing some 
+# non-independence in the data.
+
+climate <- read.csv("clim_east_Scotland.csv")
+view(climate)
+
+#Subset your breeding success dataset to exclude shags (if you’ve completed the 
+#first section, you probably saw that they’re not following the same trends as other species)
+sc <- success %>% 
+  filter(species != "Shag")
+
+sc
+
+#Design a random-intercept mixed-model approach to answer the question. Use June 
+#max temperature (when chicks hatch and are reared) as the explanatory variable 
+#– but feel free to experiment with other possibly meaningful climate variables.
+climate
+#june max temperature:
+june <- climate %>% 
+  filter(var == "tmax") %>% 
+  select(Year, JUN) %>%
+  mutate(Year = as.numeric(Year)) %>%
+  filter(Year %in% sc$year)
+
+find_temp <- function(year) {
+  temperature <- june[june$Year == year,2]
+  print(temperature)
+}
+
+sc <- sc %>%
+  mutate(year = as.numeric(year)) %>%
+  rowwise() %>%
+  mutate(temp = ifelse(year %in% unique(june$Year),
+                       find_temp(year),
+                       NA)) %>%
+  ungroup()
+
+
+view(sc)
+
+#and modify sc to exclude years with no temperature data, and a little renaming for clarity:
+
+sc <- sc %>%
+  filter(year >= 1986) %>%
+  rename(bs = value)
+#adding a normalized year (ie, 1,2,3 etc rather than 1985...)
+sc <- sc %>%
+  mutate(nyear = as.factor(year-1985))
+sc
+#and scaling temperature so the mean is 0 and variation is represented by
+#std deviations.
+sc$temp <- scale(sc$temp, center = TRUE, scale = TRUE)
+sc
+
+ggplot(sc, aes(x = temp, y = bs, color = species)) +
+  geom_point() +
+  facet_wrap(~species) +
+  theme_bw() +
+  scale_color_manual(values = birdpal) +
+  theme(legend.position = "none") +
+  labs(title = "how does breeding success relate to temperature change?")
+
+ggplot(sc, aes(x=temp, y= bs, color = species)) +
+  geom_point() +
+  theme_bw() +
+  scale_color_manual(values = birdpal)
+
+#looking at individual species, these don't rly strike me as 
+#linear relationships with dramatic changes...
+#but in 1 graph it's easy to see how not accounting for
+#species would give us a false idea of how important temp is.
+
+# ok time for model
+#well let's start with a more basic question, has temperature changed over time?
+
+templine <- lm(temp ~ year, data = sc)
+summary(templine)
+
+ggplot(sc, aes(y = temp, x = year)) +
+  geom_smooth(method = "lm", se = TRUE) +
+  geom_point() +
+  theme_bw()
+
+view(sc)
+#there's enough variation on here for me to say, i think yes
+#p-value is .01 which is low by ecology standards
+#having scaled temperature around 0, slope is .022
+#and std error is .0088 - so doesn't overlap 0 a generally good sign.
+
+library(lme4)
+#now we've established that there's significant variation in temperature over time...
+# let's see how temperature explains breeding success across all species by controlling for species
+# dependent variable is breeding success
+#explanatory variable & fixed effect is june temperature max
+#species is randomized
+
+mixed1 <- lmer(bs ~ temp + (1|species), data = sc)
+summary(mixed1)
+#temp doesn't account for species here - std error of temp is .0149, est slope is .00576
+plot(mixed1)
+qqnorm(resid(mixed1))
+qqline(resid(mixed1))
+#not great qq - see a lot of weird divergence at tails
+ggplot(sc, aes(x = bs)) +
+  geom_histogram(bins = 20)
+#standardish distribution
+
+view(sc)
+
+.01831/(.01831+.03449) #species is 34.7% of variance
+#hm i need to account for year
+#or do i? temperature is kind of the same deal as year
+
+mixed2 <- lmer(bs ~ temp + (1|nyear) + (1|species), data = sc)
+summary(mixed2)
+(.007048)/(.007048+.018386 + .027512) #13.3% of variance is due to year...
+
+plot(mixed2)
+qqnorm(resid(mixed2))
+qqline(resid(mixed2))
+library(sjPlot)
+plot_model(mixed2, type = "re", show.values = TRUE)
+plot_model(mixed2, show.values = TRUE)
+#should species be within year...?
+#an effect is (fully) crossed when all the subjects have experienced all the levels of that effect.
+#every species has been observed every year (mostly) so yes
+
+#hmphhh none of this looks right
+mixed3 <- lmer(bs ~ temp + (1|nyear), data = sc)
+summary(mixed3)
+plot(mixed3)
+qqnorm(resid(mixed3))
+qqline(resid(mixed3))
+
+#ok this one has the best qq so far
+#but should i be randomizing year when year and temp correspond
+#to same things??
+
+plot_model(mixed3, type = "re", show.values = TRUE)
+plot_model(mixed3, show.values = TRUE)
+
+#let's try something else: letting each species have its
+#own relationship with temperature
+#via random slopes.
+
+mixed4 <- lmer(bs ~ temp + (temp|species), data = sc)
+summary(mixed4)
+plot(mixed4)
+qqnorm(resid(mixed4))
+qqline(resid(mixed4))
+?isSingular
+
+
+#Extract and plot the predicted values from the model using the
+#ggeffects package, and overlay the raw data on the graph.
+library(ggeffects)
+
+sp_both <- ggpredict(mixed2, terms = c("temp"))
+sp_yr <- ggpredict(mixed3, terms = c("temp"))
+sp_sp <- ggpredict(mixed1, terms = c("temp"))
+
+ggplot(sp_both) +
+  geom_line(aes(x=x, y=predicted)) + #slope line
+  geom_ribbon(aes(x=x, ymin = predicted - std.error, ymax=predicted + std.error),
+              fill = "lightgrey", alpha =.5) + #visualizing error
+  geom_point(data = sc,
+             aes(x=temp, y=bs, color=species)) +
+  labs(x="temperature (scaled)", y = "breeding success", title = "temperature does not predict breeding success in seabirds") +
+  scale_color_manual(values = birdpal) +
+  theme_bw()
+
+
+#if we had unsummarized data (nest by nest), 
+#would use different distribution(poisson perhaps)
+
+## okay divin time
+
+auk <- read.csv("IoM_AukDiving.csv")
+auk
+ncol(auk)
+nrow(auk) #182134
+
+#converting start time and end time to "dive duration"
+lapply(names(auk), class) #currently character
+
+auk <- auk %>%
+  mutate(StartTime = as.POSIXct(StartTime, tryFormats = c("%Y-%m-%d %H:%M:%OS")),
+         EndTime = as.POSIXct(EndTime, tryFormats = c("%Y-%m-%d %H:%M:%OS")),
+         Duration = EndTime - StartTime)
+auk
+
+auk <- auk %>% 
+  select(-StartTime, -EndTime)
+auk <- auk %>% 
+  mutate(Duration = as.numeric(Duration))
+auk$Duration
+min(auk$Duration)
+max(auk$Duration)
+
+#let's look for outliers that could be monitor errors:
+ggplot(auk, aes(x=Duration)) +
+  geom_histogram(bins = 30) +
+  xlim(-50, 400)
+
+?lims
+#even 500 eliminates 122 rows!!!
+500/60
+#i mean that's a long dive right lol
+#a little bird lung cud not handle that??
+big <- auk %>% 
+  filter(Duration > 500)
+big
+nrow(big)
+#okay these 10000s are right out
+auk <- auk %>%
+  filter(Duration < 1296128)
+auk
+nrow(auk) #182129
+ggplot(auk, aes(x=Duration)) +
+  geom_histogram(bins = 30) +
+  xlim(-50, max(auk$Duration))
+max(auk$Duration) #900
+900/60
+#fifteen minute dive still seems wild
+nrow(auk)
+auk <- auk %>% 
+  filter(Duration > 0)
+auk
+nrow(auk) #182126
+ggplot(auk, aes(x=Duration)) +
+  geom_histogram(bins = 30) +
+  xlim(-50, max(auk$Duration))
+
+big <- auk %>% 
+  filter(Duration > 500)
+big
+summary(big)
+#okay i am going to keep up to 900 bc it seems to make sense
+#the dive depths correspond with something that seems that crazy
+
+auk <- auk %>%
+  filter(Duration < 900) %>%
+  filter(!is.na(Duration))
+auk
+nrow(auk)
+#ok great shape very tidy
+
+#are dive depth and duration correlated?
+#the deeper the dive, the longer?
+#and what species dive deepest?
+
+unique(auk$Species)
+bpal2 <- c(Guill = "#EFBDBD", Raz = "#BAD5EE", Puff = "#5071A0")
+
+ggplot(auk, aes(x=Duration, y=DiveDepth, color = Species)) +
+  geom_jitter(alpha = .5) +
+  scale_color_manual(values = bpal2) +
+  theme_bw() +
+  theme(legend.position = c(.85, .85)) +
+  labs(x = "Dive Duration (seconds)", y = "Dive Depth (meters)",
+       title = "Diving Habits of Isle of May Auks")
+  
+#lol... no, huh
+#cripes
+
+ggplot(auk, aes(x=DiveDepth)) +
+  geom_histogram(bins = 45) +
+  xlim(-10, 80) +
+  ylim(0, 6000)
+
+bigd <- auk %>% 
+  filter(DiveDepth > 80)
+bigd
+
+auk <- auk %>% 
+  filter(DiveDepth < 90)
+auk
+
+ggplot(auk, aes(x=Duration, y=DiveDepth, color = Species)) +
+  geom_jitter(alpha = .6, position = "jitter") +
+  scale_color_manual(values = bpal2) +
+  theme_bw() +
+  theme(legend.position = c(.85, .85)) +
+  labs(x = "Dive Duration (seconds)", y = "Dive Depth (meters)",
+       title = "Diving Habits of Isle of May Auks")
+
+view(auk)
+
+# Guillemots dive deep but relatively quickly;
+#longer but shallower dives for puffins and razorbills;
+#puffins generally stay under longer than razorbills.
+?geom_jitter
+
+unique(auk$DepID)
+
+#for auks in general, does sex seem important?
+
+ggplot(auk, aes(x=Duration, y=DiveDepth, color = Sex)) +
+  geom_jitter(alpha = .6, position = "jitter") +
+  theme_bw() +
+  facet_wrap(~Sex)
+  theme(legend.position = c(.85, .85)) +
+  labs(x = "Dive Duration (seconds)", y = "Dive Depth (meters)",
+       title = "Diving Habits of Isle of May Auks")
+  
+#doesn't seem like Sex is super significant
+  
+#how about these individual species?
+guill <- auk %>% 
+  filter(Species == "Guill")
+length(unique(guill$DepID))
+#the 13 guillemots mentioned in the notes
+
+#how many dives per bird?
+sguil <- guill %>% 
+  group_by(DepID) %>% 
+  summarize(dives = n())
+sguil
+#ok so a fair number of dives per bird recorded, nothing that would unfairly weigh it
+
+sguil <- guill %>% 
+  group_by(DepID, Sex) %>% 
+  summarize(dives = n())
+sguil
+#solid distribution by sex as well
+
+ggplot(guill, aes(x=Duration, y=DiveDepth, color = Sex))+
+  geom_jitter(alpha=.5, position = "jitter") +
+  facet_wrap(~Sex)
+#yeah nothing wild
+
+#here we do actually have tiered data: each DepID belongs to a bord
+#does dive depth vary by species?
+ggplot(auk, aes(x=factor(Species), y=DiveDepth, fill=Species, color=Species)) +
+  geom_violin() +
+  theme_bw() +
+  scale_fill_manual(values = bpal2) +
+  scale_color_manual(values = bpal2) +
+  labs(x="Species", y= "Dive Depth (meters)", title = "Frequency of Dive Depth by Auk Species") +
+  theme(legend.position = "none") +
+  ylim(0, 80)
+
+ggplot(auk, aes(x=factor(Species), y=Duration, fill=Species, color=Species)) +
+  geom_violin() +
+  theme_bw() +
+  scale_fill_manual(values = bpal2) +
+  scale_color_manual(values = bpal2) +
+  labs(x="Species", y= "Dive Duration (seconds)", title = "Frequency of Dive Duration by Auk Species") +
+  theme(legend.position = "none") +
+  ylim(0, 750)
+  
+
+library(lme4)
+library(MCMCglmm)
+
+

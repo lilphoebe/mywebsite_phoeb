@@ -1,0 +1,16 @@
+"0","```r
+#graphing
+pq_pal <- c(\"#EC4E20\", \"#f68060\", \"#F3CA40\", \"#C5C392\",
+            \"#285238\", \"#ADA7C9\", \"#586994\", \"#ECDCB0\", \"#D38B5D\", \"#F194B4\")
+
+pq %>%
+  filter(playlist_inclusions < 200) %>%
+  mutate(composer = fct_reorder(composer,playlist_inclusions)) %>%
+  ggplot(aes(x=composer, y=playlist_inclusions, fill= composer)) +
+  scale_fill_manual(values=pq_pal) +
+  geom_col(alpha=.8, width=.8) +
+  ylab(\"# of playlist inclusions\") +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.position = \"none\")
+```"

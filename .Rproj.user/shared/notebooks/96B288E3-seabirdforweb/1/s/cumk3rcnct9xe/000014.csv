@@ -1,0 +1,1 @@
+"0","# qqplots show how the data produced by a model compare to a theoretical normal distribution. A perfect qq plot would show a 45 degree line from lower left to upper right; our model's output adheres somewhat to the line. Our model is pretty good, but we see some deviance from normal around the extremes."

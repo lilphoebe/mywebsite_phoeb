@@ -1,0 +1,17 @@
+"0","```r
+#this tells us the total tracks_sold is 1051 - the number we use to calculate percentage
+#later on
+percentage_query <-
+  \"SELECT
+count(track.genre_id) 'tracks_sold',
+genre.name 'genre_name'
+from invoice_line
+INNER JOIN track ON track.track_id = invoice_line.track_id
+INNER JOIN genre ON genre.genre_id = track.genre_id
+INNER JOIN invoice ON invoice.invoice_id = invoice_line.invoice_id
+INNER JOIN customer ON customer.customer_id = invoice.customer_id
+WHERE customer.country == 'USA'
+ORDER BY tracks_sold DESC\"
+
+run_query(percentage_query)
+```"

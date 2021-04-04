@@ -1,0 +1,17 @@
+"0","```r
+
+g_query <-
+  \"SELECT
+  COUNT(playlist_track.track_id) 'playlist_inclusions',
+  genre.name
+  FROM playlist_track
+  INNER JOIN track ON track.track_id = playlist_track.track_id
+  INNER JOIN genre ON genre.genre_id = track.genre_id
+  GROUP BY genre.name
+  ORDER BY playlist_inclusions DESC
+  LIMIT 10;
+\"
+
+ggq <- run_query(g_query)
+ggq
+```"
